@@ -73,13 +73,15 @@ pinned to temperature 0.
 
 Two findings worth more than the first row:
 
-- **The second iteration made the skill worse.** With little friction left to learn from
-  — 2 signals across six sessions, down from 14 — the optimizer still proposed a fresh
-  rule set, and first-contact resolution fell from 0.800 to 0.200. The gate reverted it.
-  Left ungated, the loop would have shipped a worse skill while reporting that it had
-  learned more. **The gate, not the optimizer, is what makes this safe to iterate.**
-  v3 also took `compliance_fraud_check` from 1.000 back down to 0.800, which trips the
-  compliance floor on its own — the composite and the floor reject it independently.
+- **The second iteration did not improve the skill, and the gate refused it.** With
+  little friction left to learn from — 2 signals across six sessions, down from 14 — the
+  optimizer still proposed a fresh rule set. Here first-contact resolution fell from
+  0.800 to 0.200 and `compliance_fraud_check` from 1.000 to 0.800, so v3 is rejected by
+  the composite and by the compliance floor independently. A later run degraded
+  differently: v3 came back *exactly level* with v2 on every headline metric and was
+  refused for failing to clear the margin rather than for regressing. Both failure modes
+  end the same way, and neither is the optimizer declining to act. **The gate, not the
+  optimizer, is what makes this safe to iterate.**
 - **The loop converges fast, then degrades.** One iteration consumed almost all the
   available friction signal. This is not a perpetual improvement engine: it buys one or
   two good iterations per batch of new traffic, and then needs new traffic.
@@ -89,13 +91,19 @@ headline metrics exactly, with composites of 0.700 and 0.689. So the v2 gain is 
 margin and the v3 drop of 0.111 is well outside that movement — but this is still 5
 scenarios. Scale the scenario set before quoting any of it as a benchmark.
 
-A later verification run, from a clean checkout on a freshly resolved dependency set,
-reproduced the first iteration independently: v1 scored 0.700 — the same value as one of
-the two scorings above — and v2 scored 0.933 against the 0.911 recorded here, keeping
-`compliance_fraud_check` (0.600 → 1.000) and `first_contact_resolution` (0.000 → 0.800)
-bit-exact. The optimizer cannot be pinned, so that run proposed a *different* nine-rule
-set and still landed in the same place. The rule text is not reproducible; the
-improvement is.
+Two later verification runs, from a clean checkout on a freshly resolved dependency set,
+reproduced this independently. Across four scorings the v1 baseline takes only two
+values — 0.689, 0.700, 0.700, 0.689 — one metric-flip apart, so the 0.02 gate margin
+sits just above the entire observed noise band. v2 landed at 0.933 and 0.945 against the
+0.911 recorded here, from rule sets of nine, ten and eleven rules respectively: the
+optimizer cannot be pinned, so it proposes something different every time and arrives in
+the same place. **The rule text does not reproduce; the improvement does.**
+
+The second run also carried through to a second iteration, where the friction available
+to the optimizer collapsed from 12 signals to *zero* — v2 had eliminated it. Given an
+empty evidence table the optimizer still proposed 11 rules, and the gate reverted them.
+That is the clearest statement of what this loop is: it converts a batch of friction
+into one good iteration, and then has nothing to work with until new traffic arrives.
 
 ## Setup
 
