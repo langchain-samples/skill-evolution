@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 # tested. uv.lock is committed alongside for an exact reproduction.
 dependencies = [
     "langchain~=1.3.1",
-    "langchain-anthropic~=1.3.1",
+    "langchain-anthropic~=1.4.6",
     "langgraph~=1.2.1",
     "langsmith~=0.8.5",
     "pydantic>=2.7,<3",
