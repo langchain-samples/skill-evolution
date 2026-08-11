@@ -1,0 +1,85 @@
+.gitignore
+  s_7200f27c1d32e8::t_b9f8c50b5f9d35 15
+  s_7200f27c1d32e8::t_27e50b5932db1b 1-14
+.env.example
+  s_7200f27c1d32e8::t_b9f8c50b5f9d35 11
+  s_7200f27c1d32e8::t_c70fb22a2769c2 1-10,12-35
+skillevo/config.py
+  s_7200f27c1d32e8::t_b9f8c50b5f9d35 22
+  s_7200f27c1d32e8::t_550b4cb2d68920 1-21,23-232
+skillevo/domain.py
+  s_7200f27c1d32e8::t_b9f8c50b5f9d35 31-32
+  s_7200f27c1d32e8::t_62f0bbaf5cc62c 1-30,33-214
+docs/TEST_CASE.md
+  s_7200f27c1d32e8::t_b5c7e2dab25530 214-229
+  s_7200f27c1d32e8::t_419da94b0ba586 25
+  s_7200f27c1d32e8::t_668b04aca7832c 134-210
+  s_7200f27c1d32e8::t_3507f885b61d55 22-24
+  s_7200f27c1d32e8::t_373be09c74fcae 26-28,131-133
+  s_7200f27c1d32e8::t_cb84cbde6c8e1a 211-213
+  s_7200f27c1d32e8::t_699ec826f14ec2 230-232
+  s_7200f27c1d32e8::t_3de9508326235f 1-21,29-130,233-244
+README.md
+  s_7200f27c1d32e8::t_b805d99d4b7f47 52-79
+  s_7200f27c1d32e8::t_b9f8c50b5f9d35 125
+  s_7200f27c1d32e8::t_dae848cc90cab9 43-45
+  s_7200f27c1d32e8::t_d0cd3e75f86633 104-108
+  s_7200f27c1d32e8::t_33d9826b6c4894 40-42
+  s_7200f27c1d32e8::t_cd901a9036ffdc 46-51
+  s_7200f27c1d32e8::t_60221a1cea021a 80-82,101-103
+  s_7200f27c1d32e8::t_f2044eb6a37825 109-111,122-124
+  s_7200f27c1d32e8::t_8af4d3fd645e11 126-128
+  s_7200f27c1d32e8::t_8377418e2631f8 1-39,83-100,112-121,129-195
+skills/payment-dispute-triage/history/v1.md
+  s_7200f27c1d32e8::t_5cfd3af21a6531 1-11
+pyproject.toml
+  s_7200f27c1d32e8::t_c9fdecf7d67b7d 1-23
+skillevo/__init__.py
+  s_7200f27c1d32e8::t_834e64b58ae697 1
+skillevo/__main__.py
+  s_7200f27c1d32e8::t_d8df0a360f79af 1-3
+skillevo/agent.py
+  s_7200f27c1d32e8::t_d8a882258c4334 1-129
+skillevo/cli.py
+  s_7200f27c1d32e8::t_44e8f179955148 1-239
+skillevo/evaluate.py
+  s_7200f27c1d32e8::t_51084002db1b1a 1-275
+skillevo/grading.py
+  s_7200f27c1d32e8::t_9ea698f89d7c11 1-124
+skillevo/harvest.py
+  s_7200f27c1d32e8::t_00159bfd1c3228 1-259
+skillevo/reflect.py
+  s_7200f27c1d32e8::t_0b0fbb4f8e00ea 1-304
+skillevo/scenarios.py
+  s_7200f27c1d32e8::t_8b7570665f67dd 1-238
+skillevo/sessions.py
+  s_7200f27c1d32e8::t_526589ce75ab5b 1-219
+skills/payment-dispute-triage/SKILL.md
+  s_7200f27c1d32e8::t_cb567f8616a43b 1-29
+skills/payment-dispute-triage/history/v2.md
+  s_7200f27c1d32e8::t_c5100176ed0413 1-29
+skills/payment-dispute-triage/history/v2.rationale.json
+  s_7200f27c1d32e8::t_1f09db8100d9d1 1-178
+skills/payment-dispute-triage/history/v3.md
+  s_7200f27c1d32e8::t_1ea0c8fa837b15 1-28
+skills/payment-dispute-triage/history/v3.rationale.json
+  s_7200f27c1d32e8::t_06bf138777e746 1-168
+tests/test_controls.py
+  s_7200f27c1d32e8::t_945805226d19a0 1-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "285ea9061cc4ea34186e57452542d491d39dd84a",
+  "prompts": {},
+  "sessions": {
+    "s_7200f27c1d32e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c42befe4-d042-4c4a-a1e1-32429e0faf7f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Eric Johanson <eric.johanson@langchain.dev>"
+    }
+  }
+}
