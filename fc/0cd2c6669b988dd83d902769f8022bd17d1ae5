@@ -1,0 +1,20 @@
+README.md
+  s_05906bfed4c93d::t_911db0cb224264 76-84
+  s_05906bfed4c93d::t_a73c23c3c5abb3 94-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "fc0cd2c6669b988dd83d902769f8022bd17d1ae5",
+  "prompts": {},
+  "sessions": {
+    "s_05906bfed4c93d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad49d723-540a-4ccd-8899-53aaa75062ce",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Eric Johanson <eric.johanson@langchain.dev>"
+    }
+  }
+}
