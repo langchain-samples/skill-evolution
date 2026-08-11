@@ -238,7 +238,11 @@ the harness reproduces, not that the effect sizes are precise.
   a single scoring pass is too coarse to decide a verdict.
 - **The judge cannot be pinned.** Newer Claude models reject the `temperature` parameter
   outright, so `message_quality` keeps full sampling variance. It is advisory and
-  deliberately outside the composite.
+  deliberately outside the composite. It can also fail outright — in a verification run
+  roughly one row in fifteen came back with the score fused into the reasoning string
+  rather than parsed as a field. Those rows are recorded as a null score and skipped in
+  the mean rather than imputed, so `message_quality` is a mean over fewer runs than the
+  deterministic metrics.
 - **The traces are not isolated as a cause.** The claim under test is that trace history
   carries the signal, but there is no arm that removes the history. What is demonstrated
   is that the loop improved the skill — not that the trace content is what improved it. A

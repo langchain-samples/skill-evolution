@@ -89,6 +89,14 @@ headline metrics exactly, with composites of 0.700 and 0.689. So the v2 gain is 
 margin and the v3 drop of 0.111 is well outside that movement — but this is still 5
 scenarios. Scale the scenario set before quoting any of it as a benchmark.
 
+A later verification run, from a clean checkout on a freshly resolved dependency set,
+reproduced the first iteration independently: v1 scored 0.700 — the same value as one of
+the two scorings above — and v2 scored 0.933 against the 0.911 recorded here, keeping
+`compliance_fraud_check` (0.600 → 1.000) and `first_contact_resolution` (0.000 → 0.800)
+bit-exact. The optimizer cannot be pinned, so that run proposed a *different* nine-rule
+set and still landed in the same place. The rule text is not reproducible; the
+improvement is.
+
 ## Setup
 
 ```bash
@@ -121,8 +129,14 @@ scores it on the holdout set, and keeps or reverts it. Budget about 15 minutes.
 
 The repo ships with `SKILL.md` at the v1 baseline, so that command starts where the
 documented run started. Every evolved version is kept in `history/` — the loop rewrites
-`SKILL.md` in place, so expect a dirty working tree afterwards, and
-`python -m skillevo reset --hard` to get back to a clean start.
+`SKILL.md` in place, so expect a dirty working tree afterwards.
+
+**Run `python -m skillevo reset --hard` before any re-run.** The scoreboard in
+`artifacts/` persists between invocations, and `loop` skips the baseline evaluation for a
+version it has already scored and gates the next candidate against the best composite on
+record. Re-running without a reset therefore measures a *new* candidate against the
+*previous* run's winner and never re-establishes the baseline — both behaviours are
+deliberate, but together they silently make the second run a different experiment.
 
 Set `SKILLEVO_RUN_ID` to a fresh value per invocation. The harvester filters on it, so
 without it a re-run mines the previous run's sessions too and its evidence counts
@@ -173,7 +187,7 @@ artifacts/       digests, evidence registry, scoreboard (gitignored)
 ```
 
 ```bash
-python3 tests/test_controls.py    # 19 tests, no LangSmith or model calls
+python3 tests/test_controls.py    # 20 tests, no LangSmith or model calls
 ```
 
 The tests matter because a live loop run only shows what the optimizer *happened* to

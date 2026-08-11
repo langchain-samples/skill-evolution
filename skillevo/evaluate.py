@@ -150,9 +150,23 @@ def message_quality(inputs: dict, outputs: dict) -> dict:
     judge = init_chat_model(
         config.JUDGE_MODEL, **config.sampling_kwargs(config.JUDGE_MODEL)
     ).with_structured_output(Judgment)
-    verdict = judge.invoke(
-        JUDGE_PROMPT.format(opening=inputs["opening_message"], transcript=outputs["transcript"])
-    )
+    try:
+        verdict = judge.invoke(
+            JUDGE_PROMPT.format(opening=inputs["opening_message"], transcript=outputs["transcript"])
+        )
+    except Exception as exc:
+        # Seen live at roughly one row in fifteen: the judge's structured output comes
+        # back with `score` fused into the reasoning string instead of parsed as its
+        # own field, and validation raises. This metric is advisory and outside the
+        # composite, so record the miss and let the experiment continue rather than
+        # failing the row. Returning None rather than a substitute value matters --
+        # summarize() skips a None score, so the reported mean stays a mean of real
+        # judgements instead of one diluted by imputed ones.
+        return {
+            "key": "message_quality",
+            "score": None,
+            "comment": f"judge output unusable, scored as a miss: {type(exc).__name__}",
+        }
     return {
         "key": "message_quality",
         "score": max(0.0, min(1.0, verdict.score)),

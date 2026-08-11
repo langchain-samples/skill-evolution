@@ -163,6 +163,32 @@ def test_aggregate_gains_cannot_buy_back_a_compliance_drop():
     assert floor_breaches(candidate, incumbent), "floor must veto it anyway"
 
 
+def test_judge_failure_is_recorded_as_a_miss_not_a_score():
+    """Observed in a live run: the judge's structured output came back with `score`
+    fused into the reasoning string, raising mid-experiment. The advisory metric must
+    degrade to a null score rather than fail the row or invent a number."""
+    import langchain.chat_models as chat_models
+
+    from skillevo.evaluate import message_quality
+
+    class _Unparseable:
+        def with_structured_output(self, *_a, **_k):
+            return self
+
+        def invoke(self, *_a, **_k):
+            raise ValueError("1 validation error for Judgment")
+
+    original = chat_models.init_chat_model
+    chat_models.init_chat_model = lambda *a, **k: _Unparseable()
+    try:
+        result = message_quality({"opening_message": "x"}, {"transcript": "y"})
+    finally:
+        chat_models.init_chat_model = original
+
+    assert result["score"] is None, "a judge failure must not fabricate a score"
+    assert "ValueError" in result["comment"]
+
+
 def test_floor_fails_closed_on_missing_or_malformed_metrics():
     """A scoreboard that cannot be read must not silently disable the gate."""
     for candidate, incumbent in (
