@@ -43,6 +43,10 @@ and each is enforced by code rather than requested in a prompt:
    held-out LangSmith dataset — each scenario run several times, with the agent pinned to
    temperature 0 — and reverted unless the composite beats the best seen so far by more
    than a margin. A strict `>` would let one scenario flipping once decide the gate.
+   Compliance is exempt from that arithmetic: the composite is an unweighted mean, so
+   `compliance_fraud_check` would otherwise be worth 0.167 and could be bought back with
+   gains in convenience metrics. It is gated separately, and any regression against the
+   incumbent reverts the candidate whatever the composite does.
 
 The full specification, including scenario design, metrics and threats to validity, is
 in [`docs/TEST_CASE.md`](docs/TEST_CASE.md).
@@ -69,6 +73,8 @@ Two findings worth more than the first row:
   rule set, and first-contact resolution fell from 0.800 to 0.200. The gate reverted it.
   Left ungated, the loop would have shipped a worse skill while reporting that it had
   learned more. **The gate, not the optimizer, is what makes this safe to iterate.**
+  v3 also took `compliance_fraud_check` from 1.000 back down to 0.800, which trips the
+  compliance floor on its own — the composite and the floor reject it independently.
 - **The loop converges fast, then degrades.** One iteration consumed almost all the
   available friction signal. This is not a perpetual improvement engine: it buys one or
   two good iterations per batch of new traffic, and then needs new traffic.
@@ -152,13 +158,15 @@ artifacts/       digests, evidence registry, scoreboard (gitignored)
 ```
 
 ```bash
-python3 tests/test_controls.py    # 15 tests, no LangSmith or model calls
+python3 tests/test_controls.py    # 19 tests, no LangSmith or model calls
 ```
 
 The tests matter because a live loop run only shows what the optimizer *happened* to
 propose. They feed the screen single-session evidence, duplicate citations of the same
 session, citations of sessions that do not exist, rules naming a specific transaction,
-and prompt-injection payloads — and assert each is dropped.
+and prompt-injection payloads — and assert each is dropped. They also drive the gate
+with a candidate whose aggregate gains outweigh a total compliance failure, and assert
+the floor vetoes it regardless.
 
 ## Reading the audit trail
 
@@ -193,3 +201,27 @@ The pieces most worth swapping for a real evaluation:
 - **Skill loading** — the skill is a plain file injected into a system prompt, so the
   loop is framework-agnostic. Point it at a Deep Agents `SkillsMiddleware` directory to
   evolve skills for an agent that loads them on demand.
+
+## Known limits
+
+The controls are the point of this repo; the execution layer around them is a spike.
+Three things to change before pointing it at production traffic:
+
+- **Harvest reads at most 100 runs** (`harvest.py`) and does not warn when it truncates,
+  so at volume the evidence counts behind every rule would be silently wrong. The cap is
+  self-imposed — the client already paginates — so replace it with a time-windowed
+  incremental harvest: filter on `start_time` since the last watermark and let the window
+  bound the read rather than the row count. Windowing rather than plain pagination also
+  keeps evidence recent, which stops rules being justified by a retired policy regime.
+
+- **The skill is written before the gate runs** (`reflect.py`), so a crash mid-evaluation
+  leaves an ungated version live on disk. Write the candidate to a staging path, evaluate
+  it there, and promote it to `SKILL.md` by atomic rename only once the gate passes, so
+  the live file only ever holds a version that cleared evaluation. That staging path is
+  also the natural place to hang a human approval step.
+
+- **Single writer.** The skill file, scoreboard and evidence registry are
+  read-modify-write local files with no locking, and the skill name is a module constant
+  — two concurrent loops clobber each other. Move that state into a store keyed by
+  `(tenant, skill, version)` with compare-and-swap on write, so concurrent runs serialize
+  instead of overwriting.

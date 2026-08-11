@@ -9,7 +9,7 @@ import sys
 
 from skillevo import config
 from skillevo.agent import load_skill
-from skillevo.evaluate import run_experiment, summarize, upsert_dataset
+from skillevo.evaluate import as_score, floor_breaches, run_experiment, summarize, upsert_dataset
 from skillevo.harvest import build_digest
 from skillevo.reflect import evolve
 from skillevo.scenarios import HOLDOUT, TRAIN
@@ -50,6 +50,20 @@ def _record(board: dict, version: int, metrics: dict, kept: bool | None = None) 
     board["entries"].append({"version": version, "metrics": metrics, "kept": kept})
     board["entries"].sort(key=lambda e: e["version"])
     _save_scoreboard(board)
+
+
+def _ranked_entries(board: dict) -> list[dict]:
+    """Scoreboard entries usable as an incumbent, best composite first.
+
+    The scoreboard is a JSON file on disk and its numbers decide promotions, so an
+    entry whose composite is missing or non-numeric is dropped rather than compared.
+    Otherwise a corrupt row could be selected as the incumbent and lower the bar.
+    """
+    usable = [
+        e for e in board.get("entries", [])
+        if as_score(e.get("metrics", {}).get("composite")) is not None
+    ]
+    return sorted(usable, key=lambda e: e["metrics"]["composite"], reverse=True)
 
 
 def _print_scoreboard(board: dict) -> None:
@@ -146,8 +160,16 @@ def cmd_loop(args) -> None:
         _record(board, version, baseline, kept=True)
         print(json.dumps(baseline, indent=2))
     # Best score seen so far, not the most recent -- a previously reverted candidate
-    # sitting at the end of the scoreboard must not lower the bar.
-    best = max(e["metrics"]["composite"] for e in board["entries"])
+    # sitting at the end of the scoreboard must not lower the bar. The whole entry is
+    # kept, not just the composite: the floor check needs the incumbent's per-metric
+    # levels to measure a regression against.
+    ranked = _ranked_entries(board)
+    if not ranked:
+        raise RuntimeError(
+            "scoreboard has no entry with a usable composite; run `evaluate` first"
+        )
+    incumbent = ranked[0]
+    best = float(incumbent["metrics"]["composite"])
 
     for iteration in range(1, args.iterations + 1):
         _, version = load_skill()
@@ -170,26 +192,32 @@ def cmd_loop(args) -> None:
         _, new_version = load_skill()
         print(f"\n-- 4. evaluate v{new_version} on the holdout set")
         metrics = summarize(run_experiment())
-        # Must clear the best composite by a margin, not merely exceed it: on this
-        # scenario count a strict `>` is decidable by one scenario flipping once.
+        # Two independent conditions. The composite must clear the incumbent by a
+        # margin, not merely exceed it: on this scenario count a strict `>` is
+        # decidable by one scenario flipping once. And no floor metric may regress at
+        # all -- that one is not tradeable against the aggregate.
         threshold = best + config.GATE_MARGIN
-        improved = metrics["composite"] > threshold
+        breaches = floor_breaches(metrics, incumbent["metrics"])
+        improved = metrics["composite"] > threshold and not breaches
         _record(board, new_version, metrics, kept=improved)
 
+        delta = (
+            f"composite {best:.3f} -> {metrics['composite']:.3f} "
+            f"(needed > {threshold:.3f})"
+        )
         if improved:
-            print(
-                f"   composite {best:.3f} -> {metrics['composite']:.3f} "
-                f"(needed > {threshold:.3f}): KEPT v{new_version}"
-            )
+            print(f"   {delta}: KEPT v{new_version}")
+            incumbent = {"version": new_version, "metrics": metrics}
             best = metrics["composite"]
         else:
             previous = config.skill_history_file(new_version - 1)
             shutil.copy2(previous, config.skill_file())
-            print(
-                f"   composite {best:.3f} -> {metrics['composite']:.3f} "
-                f"(needed > {threshold:.3f}): no improvement, "
-                f"REVERTED to v{new_version - 1}"
+            reason = (
+                "floor breached [" + "; ".join(breaches) + "]"
+                if breaches
+                else "no improvement"
             )
+            print(f"   {delta}: {reason}, REVERTED to v{new_version - 1}")
             if args.stop_on_regression:
                 break
 

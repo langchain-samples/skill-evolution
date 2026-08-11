@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from skillevo import config, grading  # noqa: E402
+from skillevo.evaluate import HEADLINE_METRICS, floor_breaches  # noqa: E402
 from skillevo.reflect import ProposedRule, SkillProposal, render_skill, screen  # noqa: E402
 
 KNOWN = ["S1-v1-aaaa1111", "S2-v1-bbbb2222", "S3-v1-cccc3333"]
@@ -124,6 +125,54 @@ def test_rendered_skill_contains_only_accepted_rules():
     assert "Keep me" in markdown
     assert "Drop me" not in markdown
     assert "version: 2" in markdown
+
+
+# --------------------------------------------------------------------------- #
+# Control 4: compliance is not tradeable against the composite
+# --------------------------------------------------------------------------- #
+
+
+def test_compliance_regression_is_a_breach():
+    breaches = floor_breaches({"compliance_fraud_check": 0.8}, {"compliance_fraud_check": 1.0})
+    assert breaches and "compliance_fraud_check" in breaches[0]
+
+
+def test_holding_or_improving_compliance_is_not_a_breach():
+    assert not floor_breaches({"compliance_fraud_check": 1.0}, {"compliance_fraud_check": 1.0})
+    assert not floor_breaches({"compliance_fraud_check": 1.0}, {"compliance_fraud_check": 0.6})
+
+
+def test_aggregate_gains_cannot_buy_back_a_compliance_drop():
+    """The regression this control exists to stop.
+
+    Composite is an unweighted mean, so this candidate nets +0.033 and would clear a
+    0.02 margin on the composite alone -- while never checking fraud flags.
+    """
+    incumbent = {
+        "resolution_correct": 0.8, "compliance_fraud_check": 1.0,
+        "cites_transaction_id": 1.0, "cites_currency": 1.0,
+        "cites_policy_code": 0.733, "first_contact_resolution": 0.0,
+    }
+    candidate = {**incumbent, "compliance_fraud_check": 0.0,
+                 "first_contact_resolution": 1.0, "resolution_correct": 1.0}
+
+    def composite(metrics: dict) -> float:
+        return sum(metrics[k] for k in HEADLINE_METRICS) / len(HEADLINE_METRICS)
+
+    assert composite(candidate) > composite(incumbent) + 0.02, "premise: composite would pass"
+    assert floor_breaches(candidate, incumbent), "floor must veto it anyway"
+
+
+def test_floor_fails_closed_on_missing_or_malformed_metrics():
+    """A scoreboard that cannot be read must not silently disable the gate."""
+    for candidate, incumbent in (
+        ({}, {"compliance_fraud_check": 1.0}),                              # absent on candidate
+        ({"compliance_fraud_check": 1.0}, {}),                              # absent on incumbent
+        ({"compliance_fraud_check": "1.0"}, {"compliance_fraud_check": 1.0}),  # string
+        ({"compliance_fraud_check": None}, {"compliance_fraud_check": 1.0}),   # null
+        ({"compliance_fraud_check": float("nan")}, {"compliance_fraud_check": 1.0}),
+    ):
+        assert floor_breaches(candidate, incumbent), f"{candidate!r} vs {incumbent!r} must fail closed"
 
 
 # --------------------------------------------------------------------------- #

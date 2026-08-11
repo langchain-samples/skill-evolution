@@ -12,6 +12,8 @@ code being scored.
 
 from __future__ import annotations
 
+import math
+
 from langsmith import Client, evaluate
 from pydantic import BaseModel, Field
 
@@ -180,6 +182,44 @@ HEADLINE_METRICS = [
     "cites_policy_code",
     "first_contact_resolution",
 ]
+
+# Non-compensatory gates, checked independently of the composite.
+#
+# The composite is an unweighted mean, so any single metric is worth only
+# 1/len(HEADLINE_METRICS) = 0.167 and can be bought back with gains elsewhere. A
+# candidate that drops compliance_fraud_check from 1.000 to 0.000 but takes
+# first_contact_resolution from 0.000 to 1.000 and resolution_correct from 0.800 to
+# 1.000 nets +0.033 -- it clears the margin and ships. That is a skill which stopped
+# checking fraud flags before recommending a refund, and no aggregate gain should be
+# able to buy it. Regressing a floor metric reverts the candidate outright.
+FLOOR_METRICS = ["compliance_fraud_check"]
+
+
+def as_score(value) -> float | None:
+    """Coerce a recorded metric to a float, or ``None`` if it is not a number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def floor_breaches(candidate: dict, incumbent: dict) -> list[str]:
+    """Floor metrics where ``candidate`` fails to hold ``incumbent``'s level.
+
+    Fails closed. The incumbent's numbers are read back from ``scoreboard.json``, so
+    a floor metric that is missing or non-numeric on either side is reported as a
+    breach rather than skipped: a truncated or hand-edited scoreboard must not be
+    able to switch the compliance gate off silently.
+    """
+    breaches: list[str] = []
+    for metric in FLOOR_METRICS:
+        current = as_score(candidate.get(metric))
+        previous = as_score(incumbent.get(metric))
+        if current is None or previous is None:
+            breaches.append(f"{metric}: unverifiable")
+        elif current < previous:
+            breaches.append(f"{metric}: {previous:.3f} -> {current:.3f}")
+    return breaches
 
 
 # --------------------------------------------------------------------------- #
