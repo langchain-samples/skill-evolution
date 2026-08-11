@@ -3,13 +3,18 @@ name = "skillevo"
 version = "0.1.0"
 description = "Test case: evolving an agent SKILL.md from multi-session LangSmith trace history"
 requires-python = ">=3.11"
+# Compatible-release pins on the LangChain family, not open lower bounds. These are
+# the versions the documented run was produced and validated on; the SDK surface the
+# harvester depends on (list_runs, list_feedback, evaluate) moves across minor
+# releases, so an unpinned `uv sync` months later resolves an environment nobody has
+# tested. uv.lock is committed alongside for an exact reproduction.
 dependencies = [
-    "langchain>=1.3.1",
-    "langchain-anthropic>=1.3.1",
-    "langgraph>=1.2.1",
-    "langsmith>=0.8.5",
-    "pydantic>=2.7",
-    "python-dotenv>=1.0",
+    "langchain~=1.3.1",
+    "langchain-anthropic~=1.3.1",
+    "langgraph~=1.2.1",
+    "langsmith~=0.8.5",
+    "pydantic>=2.7,<3",
+    "python-dotenv>=1.0,<2",
 ]
 
 [dependency-groups]

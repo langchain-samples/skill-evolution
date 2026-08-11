@@ -96,6 +96,11 @@ asks for it — costing a turn and emitting a friction signal. This keeps the fr
 signal reproducible and free, and guarantees in-session friction and offline scoring
 measure the same thing.
 
+That guarantee cuts both ways: it also means the signal the optimizer learns from is
+not independent of the metric it is scored on. This is the sharpest limitation of the
+setup and is stated as such under *Signal and metric are coupled* in
+[threats to validity](#threats-to-validity-stated-up-front) below.
+
 ## Metrics
 
 Seven of the eight evaluators are deterministic string/sequence checks, so the
@@ -211,6 +216,18 @@ the harness reproduces, not that the effect sizes are precise.
 
 ## Threats to validity, stated up front
 
+- **Signal and metric are coupled.** The friction the optimizer learns from and the
+  scores it is judged by come from the same predicates in `grading.py`. That is what
+  makes the friction signal reproducible and free, but it also means the loop is
+  improving against a proxy for its own evaluator, so the effect size here is
+  optimistic relative to production, where a thumbs-down correlates only loosely with
+  any offline metric. The generalization controls still bind independently of it — the
+  optimizer never sees reference labels, train and holdout share no account,
+  transaction or scenario id, H2 requires a resolution class no training scenario
+  demonstrates, and H3 is an unseen composition — so the holdout gain is not
+  memorization. But it is measured on a friendlier signal than production would give.
+  Substituting a real one (thumbs-down, escalation, handoff rate) is the second control
+  worth adding, after the blind-rewrite arm below.
 - **Small n.** 6 training and 5 holdout scenarios, scored 3 times each. Enough to
   demonstrate the mechanism, not enough for a confidence interval. Scale the scenario set
   before quoting numbers as a benchmark.

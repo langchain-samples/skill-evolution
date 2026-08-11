@@ -3,7 +3,6 @@
 __pycache__/
 *.pyc
 artifacts/
-uv.lock
 .env.*
 !.env.example
 *.pem

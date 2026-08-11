@@ -32,7 +32,12 @@ and each is enforced by code rather than requested in a prompt:
 2. **The optimizer never sees the answer key.** The digest contains trajectories,
    customer push-back and scores — never the correct resolution. Rule text naming a
    specific transaction or account is rejected. So the skill cannot become a lookup
-   table, and holdout improvement means something.
+   table, and holdout improvement means something. What it does *not* mean is a
+   production-sized effect: the simulated customer pushes back using the same
+   predicates the evaluators score with, so the loop learns against a proxy for its own
+   metric. The generalization controls hold regardless — but the gain is measured on a
+   friendlier signal than real traffic gives. See
+   [threats to validity](docs/TEST_CASE.md#threats-to-validity-stated-up-front).
 
 3. **The model proposes; code decides and renders.** The optimizer returns structured
    rules. Code screens them, sanitizes the text, and renders `SKILL.md` from a fixed
@@ -91,6 +96,11 @@ uv sync                      # or: pip install -e .
 cp .env.example .env         # then fill in the keys
 ```
 
+`uv.lock` is committed, so `uv sync` reproduces the environment the documented run was
+produced on. The LangChain dependencies are compatible-release pinned rather than left
+open: the SDK surface the harvester uses moves across minor versions, and an unpinned
+resolve months from now would build an environment nobody has tested.
+
 Requires a LangSmith API key (or an authenticated `langsmith` CLI profile) and model
 credentials. The agent under test defaults to Haiku 4.5 and the optimizer to Opus 5 —
 see `.env.example` to change either.
@@ -108,6 +118,11 @@ python -m skillevo loop --iterations 2
 That is the whole test case. It evaluates the baseline, then for each iteration runs
 the training sessions, harvests them from LangSmith, proposes a new skill version,
 scores it on the holdout set, and keeps or reverts it. Budget about 15 minutes.
+
+The repo ships with `SKILL.md` at the v1 baseline, so that command starts where the
+documented run started. Every evolved version is kept in `history/` — the loop rewrites
+`SKILL.md` in place, so expect a dirty working tree afterwards, and
+`python -m skillevo reset --hard` to get back to a clean start.
 
 Set `SKILLEVO_RUN_ID` to a fresh value per invocation. The harvester filters on it, so
 without it a re-run mines the previous run's sessions too and its evidence counts
