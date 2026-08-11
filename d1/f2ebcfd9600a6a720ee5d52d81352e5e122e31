@@ -1,0 +1,27 @@
+docs/TEST_CASE.md
+  s_05906bfed4c93d::t_da8f9b970cb3bf 241-245
+tests/test_controls.py
+  s_05906bfed4c93d::t_14a986622831eb 166-191
+skillevo/evaluate.py
+  s_05906bfed4c93d::t_bb96fa8108a7e5 153-169
+README.md
+  s_05906bfed4c93d::t_35c66e2be79896 92-99
+  s_05906bfed4c93d::t_eb9c0404e52e8c 190
+  s_05906bfed4c93d::t_c877560ef28163 132-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "d1f2ebcfd9600a6a720ee5d52d81352e5e122e31",
+  "prompts": {},
+  "sessions": {
+    "s_05906bfed4c93d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad49d723-540a-4ccd-8899-53aaa75062ce",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Eric Johanson <eric.johanson@langchain.dev>"
+    }
+  }
+}
