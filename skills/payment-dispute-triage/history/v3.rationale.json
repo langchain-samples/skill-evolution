@@ -1,0 +1,168 @@
+{
+  "version": 3,
+  "previous_version": 2,
+  "created_at": "2026-08-10T19:58:05.029653+00:00",
+  "optimizer_model": "anthropic:claude-opus-5",
+  "derived_from_digest": "digest-v2-train.json",
+  "min_evidence_sessions": 2,
+  "summary": "Kept the rules the evidence still supports (policy map, single lookup pass, fraud-hold check, no placeholder ids, duplicate-pair confirmation, decline/fee separation) and re-cited them. Added the two policies the agent had to discover mid-session (pending authorization hold and insufficient-funds/tier fee) to the map, plus an explicit rule to resolve on the first reply instead of asking for facts already in tool results. Tightened the efficiency rules with a specific ban on progressively widening the transaction window, which caused most of the repeated calls.",
+  "accepted_rules": [
+    {
+      "title": "Know the full policy map before calling tools",
+      "section": "procedure",
+      "guidance": "Map the condition to its policy before any lookup and fetch that policy once: repeat postings from one merchant -> P-101 Duplicate card presentment (reverse the later posting within 3 business days, no provisional credit); declined authorization -> P-204 Declined payment (no funds captured, advise retry, escalate only if a hold persists past 5 business days); customer-denied charge -> P-311 Unauthorized transaction (provisional credit within 10 business days, which itself opens fraud review).",
+      "failure_mode": "Sessions succeeded only because the agent guessed the right policy topic; the map is what kept resolution correct and must be preserved.",
+      "target_metric": "resolution_correct",
+      "evidence_cited": [
+        "S1-v2-256544af",
+        "S2-v2-c9b3ab08",
+        "S3-v2-ca707115",
+        "S4-v2-20052a20"
+      ],
+      "evidence_verified": [
+        "S1-v2-256544af",
+        "S2-v2-c9b3ab08",
+        "S3-v2-ca707115",
+        "S4-v2-20052a20"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Resolve the case in the first reply",
+      "section": "output_requirements",
+      "guidance": "Never end the first reply asking the customer for information you can derive from the transaction record. Status, decline code, currency, merchant category and account tier are all on your side: use them to name the governing policy and state the outcome. Only ask a question if the record is genuinely ambiguous, and even then still give the policy code and the provisional outcome in the same reply.",
+      "failure_mode": "The agent returned needs_more_info for facts already in its tool results, forcing three turns and a customer demand for the policy code.",
+      "target_metric": "first_contact_resolution",
+      "evidence_cited": [
+        "S6-v2-88182b38",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_verified": [
+        "S6-v2-88182b38",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "One lookup pass, never repeat a lookup",
+      "section": "procedure",
+      "guidance": "Plan a single pass: resolve the cited transaction, list the account's transactions once with one sensible window, check fraud flags, look up the account only if tier or supported currencies matter, and fetch the one governing policy. Never re-run a lookup whose result is already in the conversation.",
+      "failure_mode": "Repeated account lookups and re-listing the same account transactions inflated tool calls without adding any new information.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S5-v2-efe1a88d",
+        "S6-v2-88182b38",
+        "S4-v2-20052a20"
+      ],
+      "evidence_verified": [
+        "S5-v2-efe1a88d",
+        "S6-v2-88182b38",
+        "S4-v2-20052a20"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Never widen the transaction window repeatedly",
+      "section": "procedure",
+      "guidance": "Use one transaction window sized to the policy you are applying (a few days for duplicates, a week or two otherwise). If the first listing returns only the cited transaction, that is a complete answer: an absent second posting or absent fee posting is a finding to report, not a reason to re-query with a longer window.",
+      "failure_mode": "The agent escalated the listing window through many successive values that all returned the identical single transaction.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S5-v2-efe1a88d",
+        "S6-v2-88182b38"
+      ],
+      "evidence_verified": [
+        "S5-v2-efe1a88d",
+        "S6-v2-88182b38"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Check fraud holds before any credit or reversal",
+      "section": "procedure",
+      "guidance": "Always check the account's fraud flags before recommending a reversal or provisional credit. If an open hold exists, self-service reversal and provisional credit are frozen: route the case to the fraud team, cite the hold reference, and explain the exception under the governing policy.",
+      "failure_mode": "Correct routing depended entirely on checking holds before acting; skipping it would have issued credit on an account under active investigation.",
+      "target_metric": "compliance_fraud_check",
+      "evidence_cited": [
+        "S3-v2-ca707115",
+        "S1-v2-256544af",
+        "S4-v2-20052a20"
+      ],
+      "evidence_verified": [
+        "S3-v2-ca707115",
+        "S1-v2-256544af",
+        "S4-v2-20052a20"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Never call a tool with placeholder ids",
+      "section": "edge_cases",
+      "guidance": "Derive every required identifier from an earlier tool result before calling a tool. If an id is not yet known, obtain it from the transaction record first; never invoke a tool with a guessed or placeholder identifier.",
+      "failure_mode": "The agent called an account lookup with an unknown placeholder id and wasted a call on an error result.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S4-v2-20052a20",
+        "S6-v2-88182b38"
+      ],
+      "evidence_verified": [
+        "S4-v2-20052a20",
+        "S6-v2-88182b38"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Confirm a real duplicate pair before reversing",
+      "section": "edge_cases",
+      "guidance": "Apply the duplicate policy only when the account history shows two postings from the same merchant for the same amount within 72 hours. A single charge the customer believes they paid elsewhere, or a pending authorization with no matching second posting, is not a duplicate: handle it under the authorization-hold or merchant-billing policy instead.",
+      "failure_mode": "A single pending hold was initially triaged under the duplicate policy, which does not apply and could not resolve the request.",
+      "target_metric": "resolution_correct",
+      "evidence_cited": [
+        "S1-v2-256544af",
+        "S4-v2-20052a20",
+        "S6-v2-88182b38"
+      ],
+      "evidence_verified": [
+        "S1-v2-256544af",
+        "S4-v2-20052a20",
+        "S6-v2-88182b38"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Handle declines and add-on fees separately",
+      "section": "edge_cases",
+      "guidance": "For a declined authorization, state that no funds were captured so there is nothing to refund, advise retry, and note escalation only if a hold is still visible after the policy window. Treat any reported fee as a distinct item: look for the fee posting in the single listing you already have, address it under its own policy and account tier, and say plainly if no fee posting exists.",
+      "failure_mode": "The fee element of a decline complaint drove repeated history searches instead of being answered from the first listing and the tier-based fee policy.",
+      "target_metric": "first_contact_resolution",
+      "evidence_cited": [
+        "S2-v2-c9b3ab08",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_verified": [
+        "S2-v2-c9b3ab08",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_hallucinated": []
+    }
+  ],
+  "rejected_rules": [
+    {
+      "title": "Also map status- and tier-specific policies",
+      "section": "procedure",
+      "guidance": "Extend the map to the statuses that look like disputes but are not: a pending authorization (lodging, fuel, vehicle rental) -> P-402 Pending authorization hold (not a charge, releases within 7 days, no refund or reversal); an insufficient-funds decline -> P-508 Insufficient funds decline (no funds moved, no refund; basic-tier accounts may be assessed a returned-item fee, premier tier exempt). Read the transaction status and decline code first and pick the policy from them, not from the customer's wording.",
+      "failure_mode": "The agent defaulted to the duplicate policy for a pending hold and only discovered the governing code after two extra turns of customer pushback.",
+      "target_metric": "first_contact_resolution",
+      "evidence_cited": [
+        "S6-v2-88182b38",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_verified": [
+        "S6-v2-88182b38",
+        "S5-v2-efe1a88d"
+      ],
+      "evidence_hallucinated": [],
+      "rejected_because": "unsafe text: too long (510 > 500 chars)"
+    }
+  ]
+}

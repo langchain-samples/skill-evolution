@@ -1,0 +1,178 @@
+{
+  "version": 2,
+  "previous_version": 1,
+  "created_at": "2026-08-10T19:55:21.325932+00:00",
+  "optimizer_model": "anthropic:claude-opus-5",
+  "derived_from_digest": "digest-v1-train.json",
+  "min_evidence_sessions": 2,
+  "summary": "The evidence shows a single dominant failure: first replies omitted the policy code and an unambiguous transaction reference, so every session burned two extra turns and first_contact_resolution was 0.0 across the board. The new rule set makes policy code, transaction reference and explicit currency mandatory in the opening reply, embeds the policy-code map (duplicate/declined/unauthorized) so lookups need not be repeated, and enforces a single-pass tool plan with no placeholder ids. It also adds correctness guardrails for the two failed sessions: verify a genuine duplicate pair before recommending reversal, always check fraud holds first, and treat an add-on fee complaint as a separate item from a decline.",
+  "accepted_rules": [
+    {
+      "title": "Cite policy code and transaction id upfront",
+      "section": "output_requirements",
+      "guidance": "In the very first reply, always state the governing policy code and title verbatim, plus the exact transaction reference(s) you are acting on with amount, currency and timestamp. Customers escalate and re-ask when either is missing, costing extra turns.",
+      "failure_mode": "Every first reply omitted the policy code and/or an unambiguous transaction reference, so the customer had to ask for both in follow-up turns.",
+      "target_metric": "first_contact_resolution",
+      "evidence_cited": [
+        "S1-v1-354cb820",
+        "S2-v1-c1f58b21",
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S5-v1-cfea925f",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_verified": [
+        "S1-v1-354cb820",
+        "S2-v1-c1f58b21",
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S5-v1-cfea925f",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "State currency name explicitly, never symbol alone",
+      "section": "output_requirements",
+      "guidance": "Always write amounts with the three-letter currency code from the transaction record (e.g. '250.00 EUR'), not a bare symbol or number, and confirm whether the currency matches the account's supported currencies. Flag any cross-currency charge and explain FX handling rather than treating it as a plain domestic amount.",
+      "failure_mode": "Amounts were shown with symbols or with no currency clarification, leaving customers unsure which currency they were being charged or credited in.",
+      "target_metric": "cites_currency",
+      "evidence_cited": [
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_verified": [
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Know the policy map before calling tools",
+      "section": "procedure",
+      "guidance": "Use this map and fetch each policy at most once: duplicate/repeat postings from one merchant -> P-101 (reverse the later posting within 3 business days, no provisional credit); declined or failed authorization -> P-204 (no funds captured, nothing to refund, advise retry); customer-denied charge -> P-311 (provisional credit within 10 business days, which itself opens fraud review).",
+      "failure_mode": "The same policy lookup was repeated in later turns to answer a question that was already answerable from the first result, wasting tool calls.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S1-v1-354cb820",
+        "S2-v1-c1f58b21",
+        "S3-v1-a9a5d87b",
+        "S5-v1-cfea925f"
+      ],
+      "evidence_verified": [
+        "S1-v1-354cb820",
+        "S2-v1-c1f58b21",
+        "S3-v1-a9a5d87b",
+        "S5-v1-cfea925f"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Gather all facts in one pass, no repeat lookups",
+      "section": "procedure",
+      "guidance": "Plan one lookup pass: resolve the cited transaction, list the account's transactions once with a single sensible window, check fraud flags, and fetch the one governing policy. Never re-run a lookup whose result is already in the conversation, and never widen the transaction window repeatedly when the first result already shows the full picture.",
+      "failure_mode": "Sessions re-listed account transactions at 7/30/90 days and re-looked-up the same transaction and policy across turns.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S5-v1-cfea925f",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_verified": [
+        "S3-v1-a9a5d87b",
+        "S4-v1-3e8bf4ce",
+        "S5-v1-cfea925f",
+        "S6-v1-10e080eb"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Never call a tool with unknown placeholder ids",
+      "section": "edge_cases",
+      "guidance": "Derive required identifiers from an earlier tool result before calling a tool; if an id is not yet known, look it up from the transaction record first. Do not invoke a tool with a placeholder or guessed identifier.",
+      "failure_mode": "An account lookup was fired with an unknown placeholder id and errored, forcing a wasted extra call.",
+      "target_metric": "tool_efficiency",
+      "evidence_cited": [
+        "S4-v1-3e8bf4ce",
+        "S3-v1-a9a5d87b"
+      ],
+      "evidence_verified": [
+        "S4-v1-3e8bf4ce",
+        "S3-v1-a9a5d87b"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Check fraud holds before any credit or reversal",
+      "section": "procedure",
+      "guidance": "Always check the account's fraud flags before recommending a reversal or provisional credit. If an open fraud hold exists, self-service reversal and provisional credit are frozen: route the case to the fraud team, cite the hold reference, and explain the exception in the governing policy.",
+      "failure_mode": "Fraud-flag checking was skipped in one session before recommending a resolution, and the hold exception drives the correct outcome when a hold is open.",
+      "target_metric": "compliance_fraud_check",
+      "evidence_cited": [
+        "S3-v1-a9a5d87b",
+        "S5-v1-cfea925f",
+        "S1-v1-354cb820"
+      ],
+      "evidence_verified": [
+        "S3-v1-a9a5d87b",
+        "S5-v1-cfea925f",
+        "S1-v1-354cb820"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Confirm a real duplicate pair before reversing",
+      "section": "edge_cases",
+      "guidance": "Only apply the duplicate policy when the account history actually shows two postings from the same merchant for the same amount within 72 hours. A single charge the customer believes they already paid elsewhere, or a pending authorization with no matching second posting, is not a duplicate; handle it as an authorization/merchant-billing issue instead of recommending reversal.",
+      "failure_mode": "A lone pending authorization was labelled a duplicate and a reversal was recommended under the duplicate policy, producing an incorrect resolution.",
+      "target_metric": "resolution_correct",
+      "evidence_cited": [
+        "S6-v1-10e080eb",
+        "S1-v1-354cb820",
+        "S4-v1-3e8bf4ce"
+      ],
+      "evidence_verified": [
+        "S6-v1-10e080eb",
+        "S1-v1-354cb820",
+        "S4-v1-3e8bf4ce"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Handle declines and add-on fees separately",
+      "section": "edge_cases",
+      "guidance": "For a declined authorization, state that no funds were captured so there is nothing to refund, advise retry, and note escalation only applies if a hold is still visible after the policy window. If the customer also reports a fee, treat it as a distinct item: look for the fee posting and address it under its own policy rather than folding it into the decline answer.",
+      "failure_mode": "A decline plus a separate fee complaint was answered only on the decline, leaving the fee unresolved and the resolution judged incorrect.",
+      "target_metric": "resolution_correct",
+      "evidence_cited": [
+        "S5-v1-cfea925f",
+        "S2-v1-c1f58b21"
+      ],
+      "evidence_verified": [
+        "S5-v1-cfea925f",
+        "S2-v1-c1f58b21"
+      ],
+      "evidence_hallucinated": []
+    },
+    {
+      "title": "Name which posting is reversed and which stays",
+      "section": "output_requirements",
+      "guidance": "When two or more related postings exist, identify each by reference and timestamp and say explicitly which one is being actioned and which remains, then give the customer the single reference number to quote on follow-up. Do not describe charges only by merchant, time of day or amount.",
+      "failure_mode": "First replies described duplicate charges by time and amount without clearly pinning the reference being reversed, so customers asked which charge was meant.",
+      "target_metric": "cites_transaction_id",
+      "evidence_cited": [
+        "S1-v1-354cb820",
+        "S4-v1-3e8bf4ce"
+      ],
+      "evidence_verified": [
+        "S1-v1-354cb820",
+        "S4-v1-3e8bf4ce"
+      ],
+      "evidence_hallucinated": []
+    }
+  ],
+  "rejected_rules": []
+}

@@ -1,0 +1,23 @@
+[project]
+name = "skillevo"
+version = "0.1.0"
+description = "Test case: evolving an agent SKILL.md from multi-session LangSmith trace history"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=1.3.1",
+    "langchain-anthropic>=1.3.1",
+    "langgraph>=1.2.1",
+    "langsmith>=0.8.5",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["skillevo"]

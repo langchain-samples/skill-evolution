@@ -1,0 +1,195 @@
+# Evolving an agent skill from LangSmith trace history
+
+A proof of concept for one question: **can the conversation history an agent has
+already produced be used to improve the agent's own instructions?**
+
+The agent's behaviour lives in a single `SKILL.md` file. It starts thin and
+hand-written. The loop runs the agent across a set of multi-turn sessions, reads those
+traces back out of LangSmith, and rewrites the skill from what the history shows —
+then proves the rewrite helped by scoring it on scenarios it has never seen.
+
+```
+run sessions ──► LangSmith ──► harvest ──► reflect ──► evaluate ──► keep or revert
+   (traced)      (threads,     (digest)   (rules +    (holdout      (regression
+                  feedback)                evidence)   dataset)       gate)
+```
+
+The domain is payment dispute triage over a synthetic bank. **All data is invented
+fixture data** — no real accounts, customers, or systems, and no network calls beyond
+LangSmith and the model API.
+
+## What is actually being demonstrated
+
+Anyone can put an LLM in a loop rewriting a prompt. Four things here are load-bearing,
+and each is enforced by code rather than requested in a prompt:
+
+1. **Rules must be corroborated across sessions.** A candidate rule needs ≥2 distinct
+   *verified* sessions behind it or it is discarded. Citations are checked against the
+   registry of sessions that actually exist, so a hallucinated citation fails. This is
+   what makes the technique depend on multi-session history: one session cannot produce
+   a rule, by construction.
+
+2. **The optimizer never sees the answer key.** The digest contains trajectories,
+   customer push-back and scores — never the correct resolution. Rule text naming a
+   specific transaction or account is rejected. So the skill cannot become a lookup
+   table, and holdout improvement means something.
+
+3. **The model proposes; code decides and renders.** The optimizer returns structured
+   rules. Code screens them, sanitizes the text, and renders `SKILL.md` from a fixed
+   template. The model never writes the file, so harvested trace content — untrusted
+   input — cannot restructure the document or escape the `<skill>` block.
+
+4. **A version only survives if it measurably wins.** Every candidate is scored on a
+   held-out LangSmith dataset — each scenario run several times, with the agent pinned to
+   temperature 0 — and reverted unless the composite beats the best seen so far by more
+   than a margin. A strict `>` would let one scenario flipping once decide the gate.
+
+The full specification, including scenario design, metrics and threats to validity, is
+in [`docs/TEST_CASE.md`](docs/TEST_CASE.md).
+
+## Result from the run in this repo
+
+Each version scored on 15 runs — 5 holdout scenarios × 3 repetitions — with the agent
+pinned to temperature 0.
+
+| metric | v1 baseline | v2 | v3 |
+|---|---|---|---|
+| `compliance_fraud_check` | 0.600 | **1.000** | 0.800 |
+| `first_contact_resolution` | 0.000 | **0.800** | 0.200 |
+| `cites_policy_code` | 0.733 | 0.800 | 0.800 |
+| `resolution_correct` | 0.800 | 0.867 | 1.000 |
+| `tool_efficiency` | 0.729 | 0.902 | 0.760 |
+| **composite** | **0.689** | **0.911** | **0.800** |
+| gate | baseline | kept | **reverted** |
+
+Two findings worth more than the first row:
+
+- **The second iteration made the skill worse.** With little friction left to learn from
+  — 2 signals across six sessions, down from 14 — the optimizer still proposed a fresh
+  rule set, and first-contact resolution fell from 0.800 to 0.200. The gate reverted it.
+  Left ungated, the loop would have shipped a worse skill while reporting that it had
+  learned more. **The gate, not the optimizer, is what makes this safe to iterate.**
+- **The loop converges fast, then degrades.** One iteration consumed almost all the
+  available friction signal. This is not a perpetual improvement engine: it buys one or
+  two good iterations per batch of new traffic, and then needs new traffic.
+
+Run-to-run, two independent 15-run scorings of the same v1 skill reproduced five of six
+headline metrics exactly, with composites of 0.700 and 0.689. So the v2 gain is a wide
+margin and the v3 drop of 0.111 is well outside that movement — but this is still 5
+scenarios. Scale the scenario set before quoting any of it as a benchmark.
+
+## Setup
+
+```bash
+uv sync                      # or: pip install -e .
+cp .env.example .env         # then fill in the keys
+```
+
+Requires a LangSmith API key (or an authenticated `langsmith` CLI profile) and model
+credentials. The agent under test defaults to Haiku 4.5 and the optimizer to Opus 5 —
+see `.env.example` to change either.
+
+> The agent under test is deliberately a small model. A well-evolved skill making a
+> cheap model reliable is the actual value of this technique; a frontier model scores
+> near ceiling from the thin baseline and leaves nothing to measure.
+
+## Run it
+
+```bash
+python -m skillevo loop --iterations 2
+```
+
+That is the whole test case. It evaluates the baseline, then for each iteration runs
+the training sessions, harvests them from LangSmith, proposes a new skill version,
+scores it on the holdout set, and keeps or reverts it. Budget about 15 minutes.
+
+Set `SKILLEVO_RUN_ID` to a fresh value per invocation. The harvester filters on it, so
+without it a re-run mines the previous run's sessions too and its evidence counts
+inflate. `.env.example` lists the other knobs — repetitions, gate margin, concurrency.
+
+Individual steps, if you would rather watch them one at a time:
+
+```bash
+python -m skillevo status      # current skill version + scoreboard
+python -m skillevo sessions    # run the 6 training sessions, traced
+python -m skillevo harvest     # pull them back from LangSmith into a digest
+python -m skillevo reflect     # propose + screen + write the next SKILL.md
+python -m skillevo evaluate    # score the current skill on the holdout dataset
+python -m skillevo reset --hard  # back to the v1 baseline for a clean re-run
+```
+
+## What to look at in LangSmith
+
+| Surface | Where | What it shows |
+|---|---|---|
+| **Threads** | project `skill-evolution`, Threads tab | Each session as one thread. The extra turns *are* the friction signal — the customer re-asking because the reply was incomplete. |
+| **Trace detail** | any `triage_turn` trace | The tool trajectory the harvester mines. On a baseline failure, `check_fraud_flags` is missing before a refund is promised. |
+| **Feedback** | any final turn | The deterministic scores, written back onto the trace so the signal is queryable in the platform rather than only on disk. |
+| **Filter by version** | run filter `has(metadata, '{"skill_version": 2}')` | Slice all sessions by the skill version that produced them. |
+| **Experiment comparison** | dataset `payment-dispute-triage-holdout` → Compare | v1 vs v2 vs v3 side by side, per metric and per scenario. This is the result. |
+
+## Layout
+
+```
+skills/payment-dispute-triage/
+  SKILL.md                  the live skill — rewritten in place each iteration
+  history/v1.md, v2.md …    every version, archived
+  history/vN.rationale.json audit trail: each rule, its evidence sessions,
+                            and every rejected rule with the reason
+skillevo/
+  agent.py       agent under test; fixed preamble + mutable <skill> region
+  domain.py      synthetic bank fixtures and the five read-only tools
+  scenarios.py   train/holdout splits + the deterministic simulated customer
+  sessions.py    multi-turn runner; one trace per turn, grouped by session_id
+  harvest.py     LangSmith → cross-session digest (no reference labels)
+  reflect.py     propose → screen → render the next SKILL.md
+  evaluate.py    holdout dataset, 8 evaluators, one experiment per version
+  grading.py     the deterministic checks, shared by customer and evaluators
+  cli.py         commands above, including the regression gate
+tests/
+  test_controls.py  adversarial tests for the four controls (offline, no API calls)
+artifacts/       digests, evidence registry, scoreboard (gitignored)
+```
+
+```bash
+python3 tests/test_controls.py    # 15 tests, no LangSmith or model calls
+```
+
+The tests matter because a live loop run only shows what the optimizer *happened* to
+propose. They feed the screen single-session evidence, duplicate citations of the same
+session, citations of sessions that do not exist, rules naming a specific transaction,
+and prompt-injection payloads — and assert each is dropped.
+
+## Reading the audit trail
+
+`history/vN.rationale.json` is the point of the exercise for a regulated setting: every
+rule in the skill traces to the sessions that justify it, and every rejected proposal
+is recorded with why. A reviewer can answer "why does the agent behave this way?"
+without rerunning anything.
+
+```json
+{
+  "accepted_rules": [{
+    "title": "...", "guidance": "...",
+    "evidence_verified": ["S1-v1-…", "S4-v1-…"],
+    "failure_mode": "...", "target_metric": "..."
+  }],
+  "rejected_rules": [{
+    "title": "...",
+    "rejected_because": "only 1 verified evidence session(s), need 2"
+  }]
+}
+```
+
+## Extending it
+
+The pieces most worth swapping for a real evaluation:
+
+- **Scenario set** — `scenarios.py`. The 6/5 split demonstrates the mechanism; scale it
+  before quoting numbers.
+- **Signal source** — the friction signals here are synthetic predicates. In
+  production, substitute real thumbs-down feedback, escalation events, or handoff rates,
+  read from the same LangSmith feedback API.
+- **Skill loading** — the skill is a plain file injected into a system prompt, so the
+  loop is framework-agnostic. Point it at a Deep Agents `SkillsMiddleware` directory to
+  evolve skills for an agent that loads them on demand.

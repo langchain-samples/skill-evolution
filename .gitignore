@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+artifacts/
+uv.lock
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+credentials.json
+.DS_Store
+runs/
+.cursor/
