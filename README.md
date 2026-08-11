@@ -254,3 +254,43 @@ Three things to change before pointing it at production traffic:
   — two concurrent loops clobber each other. Move that state into a store keyed by
   `(tenant, skill, version)` with compare-and-swap on write, so concurrent runs serialize
   instead of overwriting.
+
+## Better signal — traces for coverage, outcomes for labels
+
+Traces are the right substrate for *improving* a skill and the wrong one for *scoring*
+it. This repo already splits those jobs: harvested history feeds `reflect`, which only
+proposes, and the verdict comes from a labelled holdout the optimizer never sees. That
+split is deliberate. A trace records what the agent did; it carries no counterfactual
+and no ground truth, so on its own it cannot say what the agent should have done.
+
+What traces uniquely provide is coverage. You cannot write an eval for a failure mode
+you have not observed, and traces are the only signal spanning the whole live
+distribution — which is exactly how this loop discovers that a refund gets promised
+before the fraud check runs.
+
+What they miss is the error class that matters most. The loop learns from *friction* —
+the customer having to re-ask. An incomplete answer produces friction and gets learned
+from. A wrong answer the customer pushes back on produces friction and gets learned
+from. But an answer that is confidently wrong and simply **accepted** produces no
+friction at all: it enters no digest and generates no rule. Here that gap is masked,
+because the simulated customer is a perfect oracle that pushes back precisely when a
+grading predicate fails. In production, silence means "satisfied or wrong", and a trace
+cannot tell those apart.
+
+The fix is not a different substrate but a second one joined to it. Ordered by
+information per unit — which runs opposite to how much of it exists:
+
+| signal | density | what it establishes |
+|---|---|---|
+| downstream outcome — dispute reopened, credit reversed, callback inside 7 days | sparse, delayed | what actually happened |
+| human override or correction | sparse | a labelled counterfactual: agent said X, right answer was Y |
+| escalation / handoff | sparse | unambiguous failure, with the case attached |
+| explicit thumbs-down | sparse, biased | dissatisfaction only |
+| trace friction (used here) | dense | weak proxy, silent on the worst class |
+
+Join a trace to its downstream outcome and the digest gains what it currently lacks:
+full-distribution coverage *with* ground truth, on real cases, including the silent
+failures friction can never surface. For payment disputes those outcomes already exist —
+reopen rates, chargeback reversals and regulatory timers are tracked because they have
+to be. Wiring that join is a larger change than the signal swap suggested under
+[Extending it](#extending-it), and a more valuable one.
