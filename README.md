@@ -235,9 +235,21 @@ The pieces most worth swapping for a real evaluation:
 - **Signal source** — the friction signals here are synthetic predicates. In
   production, substitute real thumbs-down feedback, escalation events, or handoff rates,
   read from the same LangSmith feedback API.
-- **Skill loading** — the skill is a plain file injected into a system prompt, so the
-  loop is framework-agnostic. Point it at a Deep Agents `SkillsMiddleware` directory to
-  evolve skills for an agent that loads them on demand.
+- **A repository of skills** — a skill here is just a file injected into a system
+  prompt, so the loop is framework-agnostic and pointing it at a Deep Agents
+  `SkillsMiddleware` directory is mechanically easy. Doing it *correctly* is not a
+  config change, because on-demand loading breaks credit assignment. A session may carry
+  several skills, and a bad outcome can mean the wrong skill was selected, the right
+  skill had bad content, or two skills conflicted — only the middle one is fixable by
+  rewriting text. Record `skills_loaded` per turn in run metadata and harvest per skill
+  against it, or the loop will confidently rewrite a good skill in response to a routing
+  failure. Three further costs to budget for: friction divides across the repository, so
+  each skill clears the ≥2-session evidence gate far more slowly than the single-skill
+  case here (which went from 12 signals to zero in one iteration) and the long tail may
+  never clear it at all; skill *selection* is a routing problem this method does not
+  address; and a per-skill gate cannot see one skill regressing another, which needs a
+  cross-cutting regression suite in addition to per-skill holdouts. The expensive part
+  of that list is the eval content, not the code.
 
 ## Known limits
 
